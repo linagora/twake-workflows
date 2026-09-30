@@ -54,7 +54,7 @@ jobs:
     uses: linagora/twake-workflows/.github/workflows/node-ci.yml@v1
     with:
       # All optional
-      working-directory: registration
+      working-directory: packages/server
       node-version: '22' # defaults to working-directory/.nvmrc
       scripts: lint typecheck test build
 ```
