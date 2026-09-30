@@ -1,0 +1,22 @@
+name: Update major tag
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    name: Update major tag
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Move major tag to the release
+        run: |
+          major="${GITHUB_REF_NAME%%.*}"
+          git tag -f "$major"
+          git push -f origin "refs/tags/$major"
