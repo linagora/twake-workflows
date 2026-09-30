@@ -36,6 +36,31 @@ jobs:
 
 Apps in the `linagora` organization can use `secrets: inherit` instead: it does not work across organizations.
 
+## npm-publish.yml
+
+Publishes a public npm package with [provenance](https://docs.npmjs.com/generating-provenance-statements). Builds and tests belong in the package's `prepublishOnly` script, which `npm publish` runs first. The package's `repository` field must point to the GitHub repository.
+
+```yaml
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    uses: linagora/twake-workflows/.github/workflows/npm-publish.yml@v1
+    with:
+      node-version: '22' # optional, defaults to .nvmrc
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
 ## Releasing
 
 Merging to `master` ships nothing until a release is published.
