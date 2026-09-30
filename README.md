@@ -6,6 +6,8 @@ Reusable GitHub Actions workflows for Twake apps.
 
 Lints, tests, builds, runs BundleMon (when a `.bundlemonrc` exists) and publishes with `yarn cozyPublish` on `master` and version tags.
 
+A new push to a pull request cancels the run for the previous commit. Runs on `master` and tags are never cancelled.
+
 Apps must use Yarn 4.
 
 `.github/workflows/build-and-publish-cozy-app.yml` in the app:
