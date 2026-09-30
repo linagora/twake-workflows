@@ -1,0 +1,94 @@
+name: Node CI
+
+on:
+  workflow_call:
+    inputs:
+      working-directory:
+        description: Directory holding package.json and the lockfile
+        type: string
+        default: '.'
+      node-version:
+        description: Node.js version, read from .nvmrc in working-directory when empty
+        type: string
+        default: ''
+      scripts:
+        description: package.json scripts to run in order, space separated
+        type: string
+        default: 'lint test build'
+
+jobs:
+  ci:
+    name: Node CI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    # github.workflow is the caller's name here; the suffix keeps this group distinct from a caller's own group
+    concurrency:
+      group: ${{ github.workflow }}-node-ci-${{ inputs.working-directory }}-${{ inputs.node-version }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+      cancel-in-progress: true
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then
+            echo "name=pnpm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=pnpm-lock.yaml" >> "$GITHUB_OUTPUT"
+          elif [ -f yarn.lock ]; then
+            echo "name=yarn" >> "$GITHUB_OUTPUT"
+            echo "lockfile=yarn.lock" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=npm" >> "$GITHUB_OUTPUT"
+            echo "lockfile=package-lock.json" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          node-version-file: ${{ inputs.node-version == '' && format('{0}/.nvmrc', inputs.working-directory) || '' }}
+          package-manager-cache: false
+      - name: Enable Corepack
+        if: steps.pm.outputs.name != 'npm'
+        run: corepack enable
+      # Resolved in working-directory: setup-node's own cache asks the package manager from the repository root,
+      # where Corepack picks another version than the packageManager field
+      - name: Locate cache
+        id: cache
+        run: |
+          case "$PM" in
+            pnpm) echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT" ;;
+            yarn) echo "path=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT" ;;
+            npm) echo "path=$(npm config get cache)" >> "$GITHUB_OUTPUT" ;;
+          esac
+        env:
+          PM: ${{ steps.pm.outputs.name }}
+      - name: Cache dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ steps.cache.outputs.path }}
+          key: ${{ runner.os }}-${{ steps.pm.outputs.name }}-${{ hashFiles(format('{0}/{1}', inputs.working-directory, steps.pm.outputs.lockfile)) }}
+          restore-keys: ${{ runner.os }}-${{ steps.pm.outputs.name }}-
+      - name: Install dependencies
+        run: |
+          case "$PM" in
+            pnpm) pnpm install --frozen-lockfile ;;
+            yarn) yarn install --immutable ;;
+            npm) npm ci ;;
+          esac
+        env:
+          PM: ${{ steps.pm.outputs.name }}
+      - name: Run scripts
+        run: |
+          for script in $SCRIPTS; do
+            "$PM" run "$script"
+          done
+        env:
+          PM: ${{ steps.pm.outputs.name }}
+          SCRIPTS: ${{ inputs.scripts }}
