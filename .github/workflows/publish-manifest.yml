@@ -1,0 +1,84 @@
+name: Publish manifest
+
+# Publishes a standalone app (its manifest and icon, no code) to the registry
+# when a vX.Y.Z tag is pushed. The archive is manifest/manifest.webapp and
+# manifest/icon.svg; the version comes from the tag and must match package.json,
+# so the manifest never carries one in git.
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: Registry channel, dev, beta or stable
+        type: string
+        default: dev
+    secrets:
+      REGISTRY_TOKEN:
+        description: Registry editor token
+        required: true
+      DOWNCLOUD_SSH_KEY:
+        description: SSH key used by the downcloud prepublish hook
+        required: true
+
+jobs:
+  publish:
+    name: Publish manifest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Use Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+      - name: Version from the tag
+        id: version
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          case "$GITHUB_REF" in
+            refs/tags/v[0-9]*) ;;
+            *) echo "::error::Run on a vX.Y.Z tag, got ${GITHUB_REF}"; exit 1 ;;
+          esac
+          version="${GITHUB_REF_NAME#v}"
+          package_version="$(jq -r .version package.json)"
+          if [ "$version" != "$package_version" ]; then
+            echo "::error::Tag version ${version} differs from package.json version ${package_version}"
+            exit 1
+          fi
+          case "$CHANNEL" in
+            dev) published="${version}-dev.${GITHUB_SHA::7}" ;;
+            beta) published="${version}-beta.${GITHUB_RUN_NUMBER}" ;;
+            stable) published="$version" ;;
+            *) echo "::error::channel must be dev, beta or stable, got ${CHANNEL}"; exit 1 ;;
+          esac
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "published=${published}" >> "$GITHUB_OUTPUT"
+      - name: Build the archive directory
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -f manifest/manifest.webapp || { echo "::error::manifest/manifest.webapp is missing"; exit 1; }
+          test -f manifest/icon.svg || { echo "::error::manifest/icon.svg is missing"; exit 1; }
+          jq -e '.slug and .name and .editor and .type' manifest/manifest.webapp > /dev/null \
+            || { echo "::error::manifest/manifest.webapp needs slug, name, editor and type"; exit 1; }
+          mkdir manifest-build
+          cp manifest/icon.svg manifest-build/icon.svg
+          jq --arg v "$VERSION" '.version = $v | .icon = "icon.svg"' manifest/manifest.webapp > manifest-build/manifest.webapp
+          cat manifest-build/manifest.webapp
+      - name: Set SSH for downcloud
+        uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.DOWNCLOUD_SSH_KEY }}
+      - name: Publish
+        env:
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          PUBLISHED: ${{ steps.version.outputs.published }}
+        run: |
+          npx --yes cozy-app-publish --yes \
+            --token "$REGISTRY_TOKEN" \
+            --build-dir manifest-build \
+            --prepublish downcloud \
+            --manual-version "$PUBLISHED"

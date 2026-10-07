@@ -38,6 +38,74 @@ jobs:
 
 Apps in the `linagora` organization can use `secrets: inherit` instead: it does not work across organizations.
 
+## publish-manifest.yml
+
+Publishes a standalone app to the registry: the archive holds only `manifest/manifest.webapp` and `manifest/icon.svg`, no code. The home and the bar open the URL held by the manifest's `client_url_flag` instead of a subdomain.
+
+The version comes from the `vX.Y.Z` tag and must equal the one in `package.json`, so the manifest carries no `version` in git (the workflow sets it, and sets `icon` to `icon.svg`). The archive goes to downcloud and the version to the `dev` channel as `X.Y.Z-dev.<commit>` unless `channel` says `beta` (`X.Y.Z-beta.<run>`) or `stable` (`X.Y.Z`).
+
+`manifest/manifest.webapp` in the app (`client_url_flag` is the flag holding the app URL on each context):
+
+```json
+{
+  "name": "Chat",
+  "name_prefix": "Twake",
+  "slug": "chat",
+  "type": "webapp",
+  "licence": "AGPL-3.0",
+  "categories": ["cozy"],
+  "source": "https://github.com/linagora/twake-space-chat",
+  "editor": "Cozy",
+  "developer": { "name": "Twake Workplace", "url": "https://twake.app" },
+  "standalone": true,
+  "client_url_flag": "chat.embedded-app-url",
+  "permissions": {
+    "banners": {
+      "description": "Required by the cozy-bar to display platform messages",
+      "type": "io.cozy.banners",
+      "verbs": ["GET", "PUT"]
+    },
+    "apps": {
+      "description": "Required by the cozy-bar to display the icons of the apps",
+      "type": "io.cozy.apps",
+      "verbs": ["GET"]
+    },
+    "settings": {
+      "description": "Required by the cozy-bar to display storage usage",
+      "type": "io.cozy.settings",
+      "verbs": ["GET"]
+    },
+    "files": {
+      "description": "Required to get shortcuts",
+      "type": "io.cozy.files",
+      "verbs": ["GET"],
+      "selector": "name",
+      "values": ["Home"]
+    }
+  }
+}
+```
+
+`.github/workflows/publish-manifest.yml` in the app:
+
+```yaml
+name: Publish manifest
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  publish:
+    uses: linagora/twake-workflows/.github/workflows/publish-manifest.yml@v1
+    secrets:
+      REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+      DOWNCLOUD_SSH_KEY: ${{ secrets.DOWNCLOUD_SSH_KEY }}
+```
+
+`with: channel: beta` or `stable` publishes to that channel instead of `dev`.
+
 ## Releasing
 
 Merging to `master` ships nothing until a release is published.
