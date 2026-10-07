@@ -4,9 +4,9 @@ Reusable GitHub Actions workflows for Twake apps.
 
 ## build-and-publish-cozy-app.yml
 
-Lints, tests, builds, runs BundleMon (when a `.bundlemonrc` exists) and publishes with `yarn cozyPublish` on `master` and version tags.
+Lints, tests, builds, runs BundleMon (when a `.bundlemonrc` exists) and publishes with `yarn cozyPublish` on the default branch (`master` or `main`) and version tags.
 
-A new push to a pull request cancels the run for the previous commit. Runs on `master` and tags are never cancelled.
+A new push to a pull request cancels the run for the previous commit. Runs on the default branch and tags are never cancelled.
 
 Apps must use Yarn 4.
 
@@ -19,7 +19,7 @@ on:
   pull_request:
   push:
     branches:
-      - master
+      - master # or main
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
       - '[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
