@@ -42,7 +42,7 @@ Apps in the `linagora` organization can use `secrets: inherit` instead: it does 
 
 Publishes a standalone app to the registry: the archive holds only `manifest/manifest.webapp` and `manifest/icon.svg`, no code. The home and the bar open the URL held by the manifest's `client_url_flag` instead of a subdomain.
 
-The version comes from the `vX.Y.Z` tag and must equal the one in `package.json`, so the manifest carries no `version` in git (the workflow sets it, and sets `icon` to `icon.svg`). The archive goes to downcloud and the version to the `dev` channel as `X.Y.Z-dev.<commit>` unless `channel` says `beta` (`X.Y.Z-beta.<run>`) or `stable` (`X.Y.Z`).
+The version comes from the `vX.Y.Z` tag and must equal the one in `package.json` (in a monorepo, tag `<app>-vX.Y.Z` and it is checked against `apps/<app>/package.json`), so the manifest carries no `version` in git (the workflow sets it, and sets `icon` to `icon.svg`). The archive goes to downcloud and the version to the `dev` channel as `X.Y.Z-dev.<commit>` unless `channel` says `beta` (`X.Y.Z-beta.<run>`) or `stable` (`X.Y.Z`).
 
 `manifest/manifest.webapp` in the app (`client_url_flag` is the flag holding the app URL on each context):
 
