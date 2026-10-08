@@ -15,11 +15,19 @@ on:
         description: package.json scripts to run in order, space separated
         type: string
         default: 'lint test build'
+      node-options:
+        description: NODE_OPTIONS for the scripts, like --max-old-space-size=6144
+        type: string
+        default: ''
+      runs-on:
+        description: Runner label
+        type: string
+        default: ubuntu-latest
 
 jobs:
   ci:
     name: Node CI
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -92,3 +100,4 @@ jobs:
         env:
           PM: ${{ steps.pm.outputs.name }}
           SCRIPTS: ${{ inputs.scripts }}
+          NODE_OPTIONS: ${{ inputs.node-options }}

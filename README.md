@@ -57,6 +57,8 @@ jobs:
       working-directory: packages/server
       node-version: '22' # defaults to working-directory/.nvmrc
       scripts: lint typecheck test build
+      node-options: --max-old-space-size=6144
+      runs-on: linagora # a self-hosted runner label
 ```
 
 To test several Node.js versions, give the calling job a `strategy.matrix` and pass `node-version: ${{ matrix.node-version }}`.
