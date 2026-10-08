@@ -1,9 +1,10 @@
 name: Publish manifest
 
 # Publishes a standalone app (its manifest and icon, no code) to the registry
-# when a vX.Y.Z tag is pushed. The archive is manifest/manifest.webapp and
-# manifest/icon.svg; the version comes from the tag and must match package.json,
-# so the manifest never carries one in git.
+# when a vX.Y.Z tag is pushed (or <tag-prefix>X.Y.Z). The archive is
+# manifest/manifest.webapp and manifest/icon.svg; the version comes from the
+# tag and must match package.json (or package-json), so the manifest never
+# carries one in git.
 
 on:
   workflow_call:
@@ -12,6 +13,14 @@ on:
         description: Registry channel, dev, beta or stable
         type: string
         default: dev
+      tag-prefix:
+        description: What comes before X.Y.Z in the release tag, frontend-v in a monorepo
+        type: string
+        default: v
+      package-json:
+        description: The package.json holding the version of the app, apps/frontend/package.json in a monorepo
+        type: string
+        default: package.json
     secrets:
       REGISTRY_TOKEN:
         description: Registry editor token
@@ -35,16 +44,18 @@ jobs:
         id: version
         env:
           CHANNEL: ${{ inputs.channel }}
+          TAG_PREFIX: ${{ inputs.tag-prefix }}
+          PACKAGE_JSON: ${{ inputs.package-json }}
         run: |
           set -euo pipefail
           case "$GITHUB_REF" in
-            refs/tags/v[0-9]*) ;;
-            *) echo "::error::Run on a vX.Y.Z tag, got ${GITHUB_REF}"; exit 1 ;;
+            "refs/tags/${TAG_PREFIX}"[0-9]*) ;;
+            *) echo "::error::Run on a ${TAG_PREFIX}X.Y.Z tag, got ${GITHUB_REF}"; exit 1 ;;
           esac
-          version="${GITHUB_REF_NAME#v}"
-          package_version="$(jq -r .version package.json)"
+          version="${GITHUB_REF_NAME#"$TAG_PREFIX"}"
+          package_version="$(jq -r .version "$PACKAGE_JSON")"
           if [ "$version" != "$package_version" ]; then
-            echo "::error::Tag version ${version} differs from package.json version ${package_version}"
+            echo "::error::Tag version ${version} differs from ${PACKAGE_JSON} version ${package_version}"
             exit 1
           fi
           case "$CHANNEL" in
