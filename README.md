@@ -38,6 +38,52 @@ jobs:
 
 Apps in the `linagora` organization can use `secrets: inherit` instead: it does not work across organizations.
 
+## docker-publish.yml
+
+Builds an image with Buildx and pushes it. By default it tags `latest` on the default branch and the tag name on tags; `tags` takes any [docker/metadata-action](https://github.com/docker/metadata-action#tags-input) rules. The layer cache is kept per image, and a new push to a pull request cancels the run for the previous commit.
+
+```yaml
+name: Docker
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write # only for ghcr.io
+
+jobs:
+  docker:
+    uses: linagora/twake-workflows/.github/workflows/docker-publish.yml@v1
+    with:
+      image: ghcr.io/linagora/my-app
+      push: ${{ github.event_name != 'pull_request' }}
+      # All optional
+      context: server
+      platforms: linux/amd64,linux/arm64
+      tags: |
+        type=raw,value=latest,enable={{is_default_branch}}
+        type=match,pattern=server-(v.*),group=1
+```
+
+For another registry (Docker Hub, Harbor), pass the `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` secrets.
+
+To push the same build to a second registry, pass the `EXTRA_IMAGE`, `EXTRA_REGISTRY_USERNAME` and `EXTRA_REGISTRY_PASSWORD` secrets. `EXTRA_IMAGE` is a secret so that it can be built from other secrets:
+
+```yaml
+    secrets:
+      EXTRA_IMAGE: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/my-app
+      EXTRA_REGISTRY_USERNAME: ${{ secrets.HARBOR_USER }}
+      EXTRA_REGISTRY_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+```
+
+On a self-hosted runner, pass its label as `runs-on`.
+
 ## Releasing
 
 Merging to `master` ships nothing until a release is published.
