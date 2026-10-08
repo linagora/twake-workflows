@@ -71,6 +71,17 @@ jobs:
 
 For another registry (Docker Hub, Harbor), pass the `REGISTRY_USERNAME` and `REGISTRY_PASSWORD` secrets.
 
+To push the same build to a second registry, pass the `EXTRA_IMAGE`, `EXTRA_REGISTRY_USERNAME` and `EXTRA_REGISTRY_PASSWORD` secrets. `EXTRA_IMAGE` is a secret so that it can be built from other secrets:
+
+```yaml
+    secrets:
+      EXTRA_IMAGE: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/my-app
+      EXTRA_REGISTRY_USERNAME: ${{ secrets.HARBOR_USER }}
+      EXTRA_REGISTRY_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
+```
+
+On a self-hosted runner, pass its label as `runs-on`.
+
 ## Releasing
 
 Merging to `master` ships nothing until a release is published.
