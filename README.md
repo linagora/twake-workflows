@@ -4,7 +4,9 @@ Reusable GitHub Actions workflows for Twake apps.
 
 ## build-and-publish-cozy-app.yml
 
-Lints, tests, builds, runs BundleMon (when a `.bundlemonrc` exists) and publishes with `yarn cozyPublish` on the default branch (`master` or `main`) and version tags.
+Fails on any critical vulnerability in production dependencies (`yarn npm audit`), lints, tests, builds, runs BundleMon (when a `.bundlemonrc` exists) and publishes with `yarn cozyPublish` on the default branch (`master` or `main`) and version tags.
+
+An advisory with no fix available can be ignored by its ID in `npmAuditIgnoreAdvisories` of the app's `.yarnrc.yml`.
 
 A new push to a pull request cancels the run for the previous commit. Runs on the default branch and tags are never cancelled.
 
