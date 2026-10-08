@@ -38,6 +38,33 @@ jobs:
 
 Apps in the `linagora` organization can use `secrets: inherit` instead: it does not work across organizations.
 
+## node-ci.yml
+
+Installs dependencies and runs package.json scripts in one job. The package manager (npm, pnpm or Yarn 4) comes from the lockfile, and pnpm and Yarn versions from the `packageManager` field. A new push to a pull request cancels the run for the previous commit.
+
+```yaml
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ci:
+    uses: linagora/twake-workflows/.github/workflows/node-ci.yml@v1
+    with:
+      # All optional
+      working-directory: packages/server
+      node-version: '22' # defaults to working-directory/.nvmrc
+      scripts: lint typecheck test build
+      node-options: --max-old-space-size=6144
+      runs-on: linagora # a self-hosted runner label
+```
+
+To test several Node.js versions, give the calling job a `strategy.matrix` and pass `node-version: ${{ matrix.node-version }}`.
+
 ## Releasing
 
 Merging to `master` ships nothing until a release is published.
