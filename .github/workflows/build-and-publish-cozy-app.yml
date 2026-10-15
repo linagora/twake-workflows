@@ -7,6 +7,10 @@ on:
         description: MATTERMOST_CHANNEL, only read by apps publishing with --postpublish mattermost
         type: string
         default: ''
+      runs-on:
+        description: Runner label of the job
+        type: string
+        default: ubuntu-latest
     secrets:
       REGISTRY_TOKEN:
         description: Registry editor token
@@ -18,7 +22,7 @@ on:
 jobs:
   build:
     name: Build and publish
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     timeout-minutes: 20
     permissions:
       contents: read

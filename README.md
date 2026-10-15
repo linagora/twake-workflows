@@ -32,6 +32,8 @@ jobs:
     with:
       # Only for apps publishing with --postpublish mattermost
       mattermost-channel: '{"dev":"my-app","beta":"my-app,publication","stable":"my-app,publication"}'
+      # Defaults to ubuntu-latest
+      runs-on: linagora
     secrets:
       REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
       DOWNCLOUD_SSH_KEY: ${{ secrets.DOWNCLOUD_SSH_KEY }}
