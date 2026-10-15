@@ -21,6 +21,10 @@ on:
         description: The package.json holding the version of the app, apps/frontend/package.json in a monorepo
         type: string
         default: package.json
+      runs-on:
+        description: Runner label of the job
+        type: string
+        default: ubuntu-latest
     secrets:
       REGISTRY_TOKEN:
         description: Registry editor token
@@ -32,7 +36,7 @@ on:
 jobs:
   publish:
     name: Publish manifest
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs-on }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -79,6 +83,9 @@ jobs:
           cp manifest/icon.svg manifest-build/icon.svg
           jq --arg v "$VERSION" '.version = $v | .icon = "icon.svg"' manifest/manifest.webapp > manifest-build/manifest.webapp
           cat manifest-build/manifest.webapp
+      # The downcloud upload uses rsync, which self-hosted runners may lack
+      - name: Install rsync
+        run: command -v rsync || (sudo apt-get update && sudo apt-get install -y rsync)
       - name: Set SSH for downcloud
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
         with:
