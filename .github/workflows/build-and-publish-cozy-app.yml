@@ -53,6 +53,10 @@ jobs:
         if: hashFiles('.bundlemonrc') != ''
         uses: lironer/bundlemon-action@4b47df0793e18e3899eeb07f19b7c88c92c2490e # v1
         continue-on-error: true
+      # The downcloud upload uses rsync, which self-hosted runners may lack
+      - name: Install rsync
+        if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')
+        run: command -v rsync || (sudo apt-get update && sudo apt-get install -y rsync)
       - name: Set SSH for downcloud
         if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')
         uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # v0.10.0
