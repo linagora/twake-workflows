@@ -32,6 +32,8 @@ jobs:
     with:
       # Only for apps publishing with --postpublish mattermost
       mattermost-channel: '{"dev":"my-app","beta":"my-app,publication","stable":"my-app,publication"}'
+      # Only for apps reporting errors to Sentry
+      sentry-dsn: ${{ vars.SENTRY_DSN }}
       # Defaults to ubuntu-latest
       runs-on: linagora
     secrets:
