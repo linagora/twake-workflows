@@ -39,12 +39,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - name: Enable Corepack
+        run: corepack enable
       - name: Use Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: '.nvmrc'
-      - name: Enable Corepack
-        run: corepack enable
+          # Never on runs that can publish: a poisoned cache would reach the registry token
+          cache: ${{ github.event_name == 'pull_request' && 'yarn' || '' }}
       - name: Install dependencies
         run: yarn install --immutable
       - name: Audit production dependencies
