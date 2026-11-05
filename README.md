@@ -10,6 +10,8 @@ An advisory with no fix available can be ignored by its ID in `npmAuditIgnoreAdv
 
 A new push to a pull request cancels the run for the previous commit. Runs on the default branch and tags are never cancelled.
 
+Pull request runs cache Yarn downloads. Runs on the default branch and tags never use a cache, as they can publish. The runner must have Node installed, because Corepack is enabled before `setup-node`.
+
 Apps must use Yarn 4.
 
 `.github/workflows/build-and-publish-cozy-app.yml` in the app:
