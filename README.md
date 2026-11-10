@@ -122,6 +122,53 @@ In a monorepo whose tags carry a prefix, `tag-prefix` and `package-json` say whe
       package-json: apps/frontend/package.json
 ```
 
+## opencode-review.yml
+
+Reviews pull requests with [OpenCode](https://opencode.ai) through the Linagora AI gateway. The agent only reads: its final message is posted as a comment, and it never commits.
+
+- Each push to a pull request that is not a draft starts a review, and cancels the review of the previous push.
+- A comment `/oc` on a pull request re-runs the review.
+- A comment `/oc <question>` asks a free question about the pull request.
+- A comment `/oc verify` audits the findings the other reviewers posted, when `verify-prompt-file` is set.
+
+Comments only work for members of the organization, and pull requests from forks are skipped.
+
+The prompts stay in the repository: `.github/prompts/code-review.md` (or `prompt-file`) for the review, and the file named by `verify-prompt-file` for `/oc verify`. A comment runs the workflow and reads the prompt of the default branch, so `/oc` works once both are merged.
+
+`.github/workflows/opencode-review.yml` in the repository:
+
+```yaml
+name: OpenCode review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  opencode:
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    uses: linagora/twake-workflows/.github/workflows/opencode-review.yml@v1
+    with:
+      # Only for repositories with other reviewers to audit
+      verify-prompt-file: .github/prompts/verify-findings.md
+      # Defaults to linagora/deepseek-v4.1-flash
+      model: linagora/<model>
+    secrets:
+      AI_API_BASE_URL: ${{ secrets.AI_API_BASE_URL }}
+      AI_API_KEY: ${{ secrets.AI_API_KEY }}
+```
+
+The job needs these three permissions: a reusable workflow cannot get more than its caller gives.
+
+Do not set a `concurrency` group that cancels in the calling workflow: every comment on a pull request starts a run, and it would cancel the review in progress. The reusable workflow has its own groups.
+
 ## Releasing
 
 Merging to `master` ships nothing until a release is published.

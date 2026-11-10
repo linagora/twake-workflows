@@ -1,0 +1,141 @@
+name: OpenCode review
+
+# Reviews a pull request with OpenCode through the Linagora AI gateway, on
+# each push and on /oc comments. Read-only: the agent never commits. The
+# prompts stay in the calling repository.
+#
+# On a pull request, /oc alone re-runs the review, /oc <question> asks a free
+# question, and /oc verify audits the findings the other reviewers posted
+# when the caller gives a verify-prompt-file.
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        description: Model of the AI gateway, as linagora/<model>
+        type: string
+        default: linagora/deepseek-v4.1-flash
+      prompt-file:
+        description: Review prompt, in the calling repository
+        type: string
+        default: .github/prompts/code-review.md
+      verify-prompt-file:
+        description: Prompt of /oc verify, in the calling repository. Empty disables /oc verify
+        type: string
+        default: ''
+    secrets:
+      AI_API_BASE_URL:
+        description: Base URL of the OpenAI-compatible AI gateway
+      AI_API_KEY:
+        description: Key of the AI gateway
+
+permissions: {}
+
+jobs:
+  opencode:
+    name: OpenCode
+    # Secrets are not exposed to fork PRs, and comment triggers are limited
+    # to organization members on pull requests: a comment on a plain issue
+    # would start the agent's branch-and-PR flow instead of a review.
+    if: >-
+      (github.event_name == 'pull_request'
+        && !github.event.pull_request.draft
+        && github.event.pull_request.head.repo.full_name == github.repository)
+      || (github.event_name != 'pull_request'
+        && (github.event.issue.pull_request != null || github.event.pull_request != null)
+        && (contains(github.event.comment.body, '/oc') || contains(github.event.comment.body, '/opencode'))
+        && (inputs.verify-prompt-file != '' || !contains(github.event.comment.body, '/oc verify'))
+        && contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association))
+    # Job level so that skipped runs (any other PR comment) do not cancel it.
+    # A push cancels the review of the previous push, which is stale, and a
+    # new /oc verify replaces the one still running. Other comment runs have
+    # their own group so a push never kills a /oc answer.
+    concurrency:
+      group: opencode-${{ github.event_name == 'pull_request' && 'push' || contains(github.event.comment.body, '/oc verify') && 'verify' || 'comment' }}-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' || contains(github.event.comment.body, '/oc verify') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write # The answer is posted as a comment
+      issues: write # A comment on a pull request goes through the issues API
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # A comment carries no head repository, and the agent checks out the
+      # branch it reviews: a fork branch would run next to the API key.
+      - name: Reject fork pull requests
+        id: pr
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          head_repo=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" -q .head.repo.full_name)
+          echo "head_repo=$head_repo" >> "$GITHUB_OUTPUT"
+          if [ "$head_repo" != "$GITHUB_REPOSITORY" ]; then
+            echo "::notice::skipping fork pull request $head_repo"
+          fi
+
+      # No prompt on a free question: OpenCode then answers the comment.
+      - name: Load prompt
+        id: prompt
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          PROMPT_FILE: ${{ inputs.prompt-file }}
+          VERIFY_PROMPT_FILE: ${{ inputs.verify-prompt-file }}
+        run: |
+          command=$(echo "$COMMENT_BODY" | tr -d '[:space:]')
+          if [ "$GITHUB_EVENT_NAME" = pull_request ] || [ "$command" = /oc ] || [ "$command" = /opencode ]; then
+            file="$PROMPT_FILE"
+          elif [[ "$COMMENT_BODY" == *'/oc verify'* ]]; then
+            file="$VERIFY_PROMPT_FILE"
+          else
+            exit 0
+          fi
+          test -f "$file" || { echo "::error::Prompt file $file is missing"; exit 1; }
+          {
+            echo 'text<<PROMPT_EOF'
+            cat "$file"
+            echo 'PROMPT_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # Not anomalyco/opencode/github: its first step resolves the latest
+      # release through the unauthenticated GitHub API and fails the job
+      # whenever the shared runner IP is rate limited (anomalyco/opencode#35120,
+      # closed as not planned). It also installs the latest CLI whatever SHA
+      # it is pinned to (anomalyco/opencode#39163); an npm version is
+      # immutable, so this one always runs the same code next to the secrets.
+      #
+      # The gateway is a LiteLLM proxy: it only knows its own model names,
+      # so it is declared as a plain OpenAI-compatible provider.
+      # Nobody can answer a permission prompt on a runner: an "ask" waits until
+      # the job times out, so the permissions that default to it are denied.
+      - name: Run OpenCode
+        if: github.event_name == 'pull_request' || steps.pr.outputs.head_repo == github.repository
+        env:
+          OPENCODE_VERSION: '1.18.32'
+          AI_API_BASE_URL: ${{ secrets.AI_API_BASE_URL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          MODEL: ${{ inputs.model }}
+          PROMPT: ${{ steps.prompt.outputs.text }}
+          SHARE: 'false'
+          USE_GITHUB_TOKEN: 'true'
+        run: |
+          OPENCODE_CONFIG_CONTENT=$(jq -nc --arg model "${MODEL#*/}" '{
+            provider: {linagora: {
+              npm: "@ai-sdk/openai-compatible",
+              options: {baseURL: "{env:AI_API_BASE_URL}", apiKey: "{env:AI_API_KEY}"},
+              models: {($model): {}}
+            }},
+            small_model: env.MODEL,
+            permission: {external_directory: "deny", doom_loop: "deny"}
+          }')
+          export OPENCODE_CONFIG_CONTENT
+          npx --yes "opencode-ai@$OPENCODE_VERSION" github run
